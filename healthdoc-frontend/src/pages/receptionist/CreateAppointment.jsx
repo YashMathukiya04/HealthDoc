@@ -1,32 +1,41 @@
-import React, { useState } from "react";
+// src/pages/receptionist/CreateAppointment.jsx
+import React, { useState, useEffect } from "react";
 import api from "../../api/api";
 
 const CreateAppointment = () => {
-  const [patientId, setPatientId] = useState("");
-  const [doctorId, setDoctorId] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [patients, setPatients] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [form, setForm] = useState({ patient_id: "", doctor_id: "", date: "", time: "" });
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    api.get("patients/").then(r => setPatients(r.data)).catch(console.error);
+    api.get("doctors/").then(r => setDoctors(r.data)).catch(console.error);
+  }, []);
+
+  const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.post("appointments/", { patient: patientId, doctor: doctorId, date, time });
-      alert("Appointment created!");
-    } catch (error) {
-      console.error(error);
-      alert("Error creating appointment");
-    }
+      await api.post("appointments/", { patient_id: form.patient_id, doctor_id: form.doctor_id, date: form.date, time: form.time });
+      alert("Created");
+      setForm({ patient_id: "", doctor_id: "", date: "", time: "" });
+    } catch (err) { console.error(err); alert("Failed"); }
   };
 
   return (
-    <div>
+    <div style={{ padding: 20 }}>
       <h2>Create Appointment</h2>
-      <form onSubmit={handleSubmit}>
-        <input placeholder="Patient ID" value={patientId} onChange={(e) => setPatientId(e.target.value)} />
-        <input placeholder="Doctor ID" value={doctorId} onChange={(e) => setDoctorId(e.target.value)} />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        <button type="submit">Create</button>
+      <form onSubmit={submit}>
+        <select required value={form.patient_id} onChange={e=>setForm({...form, patient_id: e.target.value})}>
+          <option value="">Select patient</option>
+          {patients.map(p => <option key={p.id} value={p.id}>{p.user?.username || p.user || p.username}</option>)}
+        </select>
+        <select required value={form.doctor_id} onChange={e=>setForm({...form, doctor_id: e.target.value})}>
+          <option value="">Select doctor</option>
+          {doctors.map(d => <option key={d.id} value={d.id}>{d.user?.username || d.user || d.username}</option>)}
+        </select>
+        <div><input type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} required /></div>
+        <div><input type="time" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} required /></div>
+        <button>Create</button>
       </form>
     </div>
   );

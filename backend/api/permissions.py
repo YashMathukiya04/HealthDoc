@@ -1,3 +1,4 @@
+# api/permissions.py
 from rest_framework.permissions import BasePermission
 
 class IsAdmin(BasePermission):
@@ -7,10 +8,6 @@ class IsAdmin(BasePermission):
 class IsDoctor(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == request.user.ROLE_DOCTOR)
-
-class IsPatient(BasePermission):
-    def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == request.user.ROLE_PATIENT)
 
 class IsReceptionist(BasePermission):
     def has_permission(self, request, view):
@@ -23,3 +20,7 @@ class IsPharmacist(BasePermission):
 class IsPathologist(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == request.user.ROLE_PATHOLOGIST)
+
+class IsPatient(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == request.user.ROLE_PATIENT)

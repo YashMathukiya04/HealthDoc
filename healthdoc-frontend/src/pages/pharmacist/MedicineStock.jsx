@@ -1,30 +1,16 @@
+// src/pages/pharmacist/MedicalStock.jsx
 import React, { useEffect, useState } from "react";
-import api from "../../api/api";
+import { fetchMedicines } from "../../api/api";
 
 const MedicalStock = () => {
-  const [medicines, setMedicines] = useState([]);
-
+  const [meds, setMeds] = useState([]);
   useEffect(() => {
-    fetchMedicines();
+    fetchMedicines().then(r => setMeds(r.data)).catch(console.error);
   }, []);
-
-  const fetchMedicines = async () => {
-    try {
-      const res = await api.get("medicines/");
-      setMedicines(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   return (
     <div>
-      <h2>Medical Stock</h2>
-      <ul>
-        {medicines.map((med) => (
-          <li key={med.id}>{med.name} - ₹{med.price}</li>
-        ))}
-      </ul>
+      <h3>Stock</h3>
+      <ul>{meds.map(m => <li key={m.id}>{m.name} — {m.stock} pcs — ₹{m.price}</li>)}</ul>
     </div>
   );
 };

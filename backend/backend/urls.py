@@ -15,18 +15,17 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+# backend/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework import routers
-from django.views.generic import RedirectView
+from api.views import home
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
-    # Redirect root URL to /api/
-    path('', RedirectView.as_view(url='/api/', permanent=False)),
+    path("admin/", admin.site.urls),
+    path("api/", include("api.urls")),
+    path('', home),
 ]
 
 if settings.DEBUG:

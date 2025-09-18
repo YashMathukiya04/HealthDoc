@@ -1,50 +1,21 @@
-// src/pages/receptionist/ReceptionDashboard.jsx
+// src/pages/receptionist/ReceptionistDashboard.jsx
 import React, { useEffect, useState } from "react";
-import { fetchAppointments, createAppointment } from "../../api/api";
+import { fetchAppointments } from "../../api/api";
 
-const ReceptionDashboard = () => {
+const ReceptionistDashboard = () => {
   const [appointments, setAppointments] = useState([]);
-  const [form, setForm] = useState({ patient: "", doctor: "", date: "", time: "" });
-
   useEffect(() => {
-    fetchAppointments().then((res) => setAppointments(res.data));
+    fetchAppointments().then(r => setAppointments(r.data)).catch(console.error);
   }, []);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    createAppointment(form).then((res) => {
-      setAppointments([...appointments, res.data]);
-      setForm({ patient: "", doctor: "", date: "", time: "" });
-    });
-  };
-
   return (
-    <div>
-      <h2>Receptionist Dashboard</h2>
-
-      <h3>Create Appointment</h3>
-      <form onSubmit={handleSubmit}>
-        <input name="patient" placeholder="Patient ID" value={form.patient} onChange={handleChange} required />
-        <input name="doctor" placeholder="Doctor ID" value={form.doctor} onChange={handleChange} required />
-        <input type="date" name="date" value={form.date} onChange={handleChange} required />
-        <input type="time" name="time" value={form.time} onChange={handleChange} required />
-        <button type="submit">Create</button>
-      </form>
-
-      <h3>All Appointments</h3>
+    <div style={{ padding: 20 }}>
+      <h2>Reception Dashboard</h2>
+      <h3>Appointments</h3>
       <ul>
-        {appointments.map((appt) => (
-          <li key={appt.id}>
-            Patient: {appt.patient.username}, Doctor: {appt.doctor.username}, Date: {appt.date}, Time: {appt.time}
-          </li>
-        ))}
+        {appointments.map(a => <li key={a.id}>Patient: {a.patient?.user?.username || a.patient} — Doctor: {a.doctor?.user?.username || a.doctor} — {a.date} {a.time} — {a.status}</li>)}
       </ul>
     </div>
   );
 };
 
-export default ReceptionDashboard;
+export default ReceptionistDashboard;

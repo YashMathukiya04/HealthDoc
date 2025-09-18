@@ -64,3 +64,11 @@ frontend/
 │   ├── App.jsx
 │   └── index.jsx
 └── package.json
+
+
+| Role         | Username     | Password        |
+| ------------ | ------------ | --------------- |
+| Admin        | `admin1`     | `adminpass`     |
+| Doctor       | `doctor1`    | `doctorpass`    |
+| Receptionist | `reception1` | `receptionpass` |
+| Patient      | `patient1`   | `patientpass`   |

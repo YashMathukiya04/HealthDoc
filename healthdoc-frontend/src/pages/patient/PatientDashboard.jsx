@@ -1,28 +1,29 @@
 // src/pages/patient/PatientDashboard.jsx
 import React, { useEffect, useState } from "react";
-import { fetchAppointments } from "../../api/api";
+import api from "../../api/api";
 
 const PatientDashboard = () => {
   const [appointments, setAppointments] = useState([]);
-
   useEffect(() => {
-    fetchAppointments().then((res) => {
-      // filter only current patient's appointments
-      const userId = JSON.parse(localStorage.getItem("user")).id;
-      setAppointments(res.data.filter((appt) => appt.patient.id === userId));
-    });
+    api.get("appointments/").then(res => {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (user) {
+        const filtered = res.data.filter(a => {
+          // try multiple possible shapes
+          if (a.patient && typeof a.patient === "object") return a.patient.user?.id === user.id || a.patient.id === user.id;
+          return false;
+        });
+        setAppointments(filtered);
+      }
+    }).catch(console.error);
   }, []);
 
   return (
-    <div>
+    <div style={{ padding: 20 }}>
       <h2>Patient Dashboard</h2>
-      <h3>Your Appointments</h3>
+      <h3>Your appointments</h3>
       <ul>
-        {appointments.map((appt) => (
-          <li key={appt.id}>
-            Doctor: {appt.doctor.username}, Date: {appt.date}, Time: {appt.time}
-          </li>
-        ))}
+        {appointments.map(a => <li key={a.id}>Dr: {a.doctor?.user?.username || a.doctor?.user || a.doctor} - {a.date} {a.time} - {a.status}</li>)}
       </ul>
     </div>
   );

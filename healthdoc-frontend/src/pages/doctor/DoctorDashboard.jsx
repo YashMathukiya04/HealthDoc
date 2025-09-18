@@ -1,34 +1,11 @@
-import React, { useEffect, useState } from "react";
-import api from "../../api/api";
+// src/pages/doctor/DoctorDashboard.jsx
+import React from "react";
 
-const DoctorAppointments = () => {
-  const [appointments, setAppointments] = useState([]);
+const DoctorDashboard = () => (
+  <div style={{ padding: 20 }}>
+    <h2>Doctor Dashboard</h2>
+    <p>Overview — appointments, prescriptions, lab requests.</p>
+  </div>
+);
 
-  useEffect(() => {
-    fetchAppointments();
-  }, []);
-
-  const fetchAppointments = async () => {
-    try {
-      const res = await api.get("doctor/appointments/"); // your endpoint
-      setAppointments(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <div>
-      <h2>Doctor Appointments</h2>
-      <ul>
-        {appointments.map((appt) => (
-          <li key={appt.id}>
-            {appt.patient.username} - {appt.date} {appt.time}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-
-export default DoctorAppointments;
+export default DoctorDashboard;

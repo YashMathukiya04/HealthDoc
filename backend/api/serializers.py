@@ -1,233 +1,125 @@
+# api/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.utils import timezone
-
 from .models import (
-    PatientProfile, DoctorProfile, Appointment, Medicine, Prescription,
-    PrescriptionMedicine, LabReportRequest, LabReportResult, Notification
+    PatientProfile, DoctorProfile, Appointment,
+    Prescription, PrescriptionMedicine, Medicine,
+    LabReportRequest, LabReportResult, Notification
 )
 
 User = get_user_model()
 
-
-# -----------------------------
-# User Serializer
-# -----------------------------
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_active')
+        fields = ('id','username','email','first_name','last_name','role','phone','is_active')
 
-
-# -----------------------------
-# Registration Serializer (for self-register and receptionist-register)
-# -----------------------------
 class RegisterPatientSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
-    dob = serializers.DateField(write_only=True, required=False)
-    gender = serializers.ChoiceField(
-        choices=[('male', 'Male'), ('female', 'Female'), ('other', 'Other')],
-        write_only=True,
-        required=False
-    )
+    password = serializers.CharField(write_only=True)
+    dob = serializers.DateField(write_only=True, required=False, allow_null=True)
+    gender = serializers.CharField(write_only=True, required=False, allow_null=True)
     address = serializers.CharField(write_only=True, required=False)
     blood_group = serializers.CharField(write_only=True, required=False)
     emergency_contact = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = (
-            'username', 'email', 'first_name', 'last_name',
-            'password', 'dob', 'gender', 'address',
-            'blood_group', 'emergency_contact'
-        )
+        fields = ('username','email','first_name','last_name','password','phone','dob','gender','address','blood_group','emergency_contact')
 
     def create(self, validated_data):
-        # Extract patient profile fields
-        dob = validated_data.pop('dob', None)
-        gender = validated_data.pop('gender', None)
-        address = validated_data.pop('address', '')
-        blood_group = validated_data.pop('blood_group', '')
-        emergency_contact = validated_data.pop('emergency_contact', '')
-
-        # Create user with patient role
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data.get('email', ''),
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            role=User.ROLE_PATIENT
-        )
-
-        # Create PatientProfile safely
-        patient_profile, created = PatientProfile.objects.get_or_create(user=user)
-        patient_profile.dob = dob
-        patient_profile.gender = gender
-        patient_profile.address = address
-        patient_profile.blood_group = blood_group
-        patient_profile.emergency_contact = emergency_contact
-
-        # Determine registration type (receptionist vs self)
-        request = self.context.get('request', None)
-        if request and request.user.is_authenticated and request.user.role == User.ROLE_RECEPTIONIST:
-            # receptionist created this patient
-            patient_profile.registration_type = PatientProfile.REGISTRATION_RECEPTIONIST
-            patient_profile.registered_by = request.user
-            patient_profile.is_verified = True
-            patient_profile.verified_at = timezone.now()
-        else:
-            # self-registered
-            patient_profile.registration_type = PatientProfile.REGISTRATION_SELF
-            patient_profile.registered_by = None
-            patient_profile.is_verified = False
-
-        patient_profile.save()
+        profile_fields = {}
+        for k in ('dob','gender','address','blood_group','emergency_contact'):
+            if k in validated_data:
+                profile_fields[k] = validated_data.pop(k)
+        password = validated_data.pop('password')
+        user = User.objects.create_user(**validated_data)
+        user.role = User.ROLE_PATIENT
+        user.set_password(password)
+        user.save()
+        # create or update patient profile
+        PatientProfile.objects.update_or_create(user=user, defaults={**profile_fields, 'registration_type': PatientProfile.REG_SELF})
         return user
 
-
-# -----------------------------
-# Patient Profile Serializer
-# -----------------------------
 class PatientProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=User.objects.filter(role=User.ROLE_PATIENT),
-        source='user'
-    )
-    registered_by = UserSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=User.objects.filter(role=User.ROLE_PATIENT), source='user')
 
     class Meta:
         model = PatientProfile
-        fields = (
-            'id', 'user', 'user_id', 'dob', 'gender', 'address',
-            'blood_group', 'emergency_contact',
-            'registration_type', 'registered_by',
-            'is_verified', 'verified_at', 'created_at'
-        )
+        fields = ('id','user','user_id','dob','gender','address','blood_group','emergency_contact','registration_type','registered_by','created_at')
 
-
-# -----------------------------
-# Doctor Profile Serializer
-# -----------------------------
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=User.objects.filter(role=User.ROLE_DOCTOR),
-        source='user'
-    )
+    user_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=User.objects.filter(role=User.ROLE_DOCTOR), source='user')
 
     class Meta:
         model = DoctorProfile
-        fields = ('id', 'user', 'user_id', 'specialization', 'qualifications', 'experience', 'availability')
+        fields = ('id','user','user_id','specialization','qualifications','experience_years','availability')
 
-
-# -----------------------------
-# Appointment Serializer
-# -----------------------------
 class AppointmentSerializer(serializers.ModelSerializer):
     patient = PatientProfileSerializer(read_only=True)
-    patient_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=PatientProfile.objects.all(),
-        source='patient'
-    )
+    patient_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=PatientProfile.objects.all(), source='patient')
     doctor = DoctorProfileSerializer(read_only=True)
-    doctor_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=DoctorProfile.objects.all(),
-        source='doctor'
-    )
+    doctor_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=DoctorProfile.objects.all(), source='doctor')
 
     class Meta:
         model = Appointment
-        fields = (
-            'id', 'patient', 'patient_id',
-            'doctor', 'doctor_id',
-            'date', 'time', 'status', 'created_by', 'updated_at'
-        )
+        fields = ('id','patient','patient_id','doctor','doctor_id','date','time','status','created_by','created_at','updated_at')
 
+    def validate(self, data):
+        # validate doctor availability (very simple)
+        doctor = data['doctor']
+        date = data['date']
+        time = data['time']
+        if Appointment.objects.filter(doctor=doctor, date=date, time=time).exists():
+            raise serializers.ValidationError("Doctor already has appointment at this date/time")
+        return data
 
-# -----------------------------
-# Medicine Serializer
-# -----------------------------
-class MedicineSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Medicine
-        fields = ('id', 'name', 'description')
-
-
-# -----------------------------
-# Prescription Serializer
-# -----------------------------
 class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
-        fields = ('id', 'medicine_name', 'dosage', 'duration', 'pharmacist_note', 'status')
-
+        fields = ('id','medicine_name','dosage','duration','pharmacist_note','status')
 
 class PrescriptionSerializer(serializers.ModelSerializer):
     items = PrescriptionMedicineSerializer(many=True, write_only=True)
     appointment = AppointmentSerializer(read_only=True)
-    appointment_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=Appointment.objects.all(),
-        source='appointment'
-    )
+    appointment_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=Appointment.objects.all(), source='appointment', required=False)
 
     class Meta:
         model = Prescription
-        fields = ('id', 'doctor', 'patient', 'appointment', 'appointment_id', 'notes', 'items', 'created_at')
+        fields = ('id','doctor','patient','appointment','appointment_id','notes','items','created_at')
 
     def create(self, validated_data):
-        items_data = validated_data.pop('items', [])
+        items = validated_data.pop('items', [])
         prescription = Prescription.objects.create(**validated_data)
-        for item in items_data:
-            PrescriptionMedicine.objects.create(prescription=prescription, **item)
+        for it in items:
+            PrescriptionMedicine.objects.create(prescription=prescription, **it)
         return prescription
 
+class MedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Medicine
+        fields = ('id','name','description','manufacturer','stock','price','expiry_date')
 
-# -----------------------------
-# Lab Report Serializers
-# -----------------------------
-class LabReportRequestSerializer(serializers.ModelSerializer):
+class LabRequestSerializer(serializers.ModelSerializer):
     doctor = DoctorProfileSerializer(read_only=True)
-    doctor_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=DoctorProfile.objects.all(),
-        source='doctor'
-    )
+    doctor_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=DoctorProfile.objects.all(), source='doctor')
     patient = PatientProfileSerializer(read_only=True)
-    patient_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=PatientProfile.objects.all(),
-        source='patient'
-    )
+    patient_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=PatientProfile.objects.all(), source='patient')
 
     class Meta:
         model = LabReportRequest
-        fields = ('id', 'doctor', 'doctor_id', 'patient', 'patient_id', 'appointment', 'test_name', 'status', 'created_at')
+        fields = ('id','doctor','doctor_id','patient','patient_id','appointment','test_name','status','created_at')
 
-
-class LabReportResultSerializer(serializers.ModelSerializer):
-    request = LabReportRequestSerializer(read_only=True)
-    request_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        queryset=LabReportRequest.objects.all(),
-        source='request'
-    )
+class LabResultSerializer(serializers.ModelSerializer):
+    request = LabRequestSerializer(read_only=True)
+    request_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=LabReportRequest.objects.all(), source='request')
 
     class Meta:
         model = LabReportResult
-        fields = ('id', 'request', 'request_id', 'pathologist', 'result_file', 'result_text', 'created_at', 'is_final')
+        fields = ('id','request','request_id','pathologist','result_file','result_text','created_at','is_final')
 
-
-# -----------------------------
-# Notification Serializer
-# -----------------------------
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ('id', 'user', 'message', 'type', 'is_read', 'created_at')
+        fields = ('id','user','message','type','is_read','created_at')

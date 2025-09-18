@@ -1,3 +1,4 @@
+# api/apps.py
 from django.apps import AppConfig
 
 class ApiConfig(AppConfig):
@@ -5,5 +6,5 @@ class ApiConfig(AppConfig):
     name = 'api'
 
     def ready(self):
-        # import signals to auto-create profiles
+        # import signals
         import api.signals  # noqa

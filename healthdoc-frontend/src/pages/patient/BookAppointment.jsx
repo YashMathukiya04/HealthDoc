@@ -1,47 +1,45 @@
+// src/pages/patient/BookAppointment.jsx
 import React, { useEffect, useState } from "react";
-import api from "../../api/api";
+import { fetchDoctors, createAppointment } from "../../api/api";
 
-const BookAppointments = () => {
+const BookAppointment = () => {
   const [doctors, setDoctors] = useState([]);
-  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
   useEffect(() => {
-    fetchDoctors();
+    fetchDoctors().then(r => setDoctors(r.data)).catch(console.error);
   }, []);
 
-  const fetchDoctors = async () => {
+  const submit = async (e) => {
+    e.preventDefault();
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user) return alert("Login required");
     try {
-      const res = await api.get("doctors/");
-      setDoctors(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleBook = async () => {
-    try {
-      await api.post("appointments/", { doctor: selectedDoctor, date, time });
-      alert("Appointment booked!");
-    } catch (error) {
-      console.error(error);
-      alert("Error booking appointment");
+      // payload: doctor_id and patient_id or patient (depends on backend serializer)
+      await createAppointment({ doctor_id: doctorId, patient_id: user.id, date, time });
+      alert("Booked");
+    } catch (err) {
+      console.error(err);
+      alert("Failed");
     }
   };
 
   return (
-    <div>
+    <div style={{ padding: 20 }}>
       <h2>Book Appointment</h2>
-      <select onChange={(e) => setSelectedDoctor(e.target.value)} value={selectedDoctor}>
-        <option value="">Select Doctor</option>
-        {doctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.username}</option>)}
-      </select>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-      <button onClick={handleBook}>Book</button>
+      <form onSubmit={submit}>
+        <select value={doctorId} onChange={(e)=>setDoctorId(e.target.value)} required>
+          <option value="">Select doctor</option>
+          {doctors.map(d => <option key={d.id} value={d.id}>{d.user?.username || d.user || d.username} — {d.specialization || d.role}</option>)}
+        </select>
+        <div><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></div>
+        <div><input type="time" value={time} onChange={e=>setTime(e.target.value)} required /></div>
+        <button type="submit">Book</button>
+      </form>
     </div>
   );
 };
 
-export default BookAppointments;
+export default BookAppointment;

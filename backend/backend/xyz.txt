@@ -1,0 +1,428 @@
+// api/models.py 
+
+from django.db import models
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.conf import settings
+from django.utils import timezone
+
+
+class UserManager(BaseUserManager):
+    use_in_migrations = True
+
+    def _create_user(self, username, email, password, role=None, **extra_fields):
+        if not username:
+            raise ValueError("The given username must be set")
+        email = self.normalize_email(email)
+        user = self.model(
+            username=username,
+            email=email,
+            role=role or self.model.ROLE_PATIENT,
+            **extra_fields
+        )
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_user(self, username, email=None, password=None, role=None, **extra_fields):
+        return self._create_user(username, email, password, role=role, **extra_fields)
+
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        role = extra_fields.pop("role", None) or self.model.ROLE_ADMIN
+        return self._create_user(username, email, password, role=role, **extra_fields)
+
+
+class User(AbstractUser):
+    ROLE_ADMIN = "admin"
+    ROLE_RECEPTIONIST = "receptionist"
+    ROLE_DOCTOR = "doctor"
+    ROLE_PATIENT = "patient"
+    ROLE_LAB_TECHNICIAN = "lab_technician"
+    ROLE_PATHOLOGIST = "pathologist"
+    ROLE_PHARMACIST = "pharmacist"
+
+    ROLE_CHOICES = [
+        (ROLE_ADMIN, "Admin"),
+        (ROLE_RECEPTIONIST, "Receptionist"),
+        (ROLE_DOCTOR, "Doctor"),
+        (ROLE_PATIENT, "Patient"),
+        (ROLE_LAB_TECHNICIAN, "Lab Technician"),
+        (ROLE_PATHOLOGIST, "Pathologist"),
+        (ROLE_PHARMACIST, "Pharmacist"),
+    ]
+
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, default=ROLE_PATIENT)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+
+    objects = UserManager()
+
+    def __str__(self):
+        return f"{self.username} ({self.role})"
+
+
+class PatientProfile(models.Model):
+    REGISTRATION_SELF = "self"
+    REGISTRATION_RECEPTIONIST = "receptionist"
+
+    REGISTRATION_CHOICES = [
+        (REGISTRATION_SELF, "Self"),
+        (REGISTRATION_RECEPTIONIST, "Receptionist"),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="patient_profile")
+    dob = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=[("male", "Male"), ("female", "Female"), ("other", "Other")])
+    address = models.TextField(blank=True, null=True)
+    blood_group = models.CharField(max_length=5, blank=True, null=True)
+    emergency_contact = models.CharField(max_length=20, blank=True, null=True)
+
+    registration_type = models.CharField(max_length=20, choices=REGISTRATION_CHOICES)
+    registered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="registered_patients")
+
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Patient: {self.user.username}"
+
+
+class DoctorProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    specialization = models.CharField(max_length=100, blank=True)
+    qualifications = models.TextField(blank=True)
+    experience = models.IntegerField(default=0)
+    availability = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Dr. {self.user.get_full_name() or self.user.username} - {self.specialization}"
+
+
+class Appointment(models.Model):
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="appointments")
+    doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="doctor_appointments")
+    date = models.DateTimeField()
+    reason = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=[("pending", "Pending"), ("confirmed", "Confirmed"), ("cancelled", "Cancelled")], default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Appointment: {self.patient.username} with {self.doctor.username}"
+
+
+class Prescription(models.Model):
+    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE)
+    doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="prescriptions")
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="patient_prescriptions")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Prescription for {self.patient.username} by Dr. {self.doctor.username}"
+
+
+class PrescriptionMedicine(models.Model):
+    prescription = models.ForeignKey(Prescription, on_delete=models.CASCADE, related_name="medicines")
+    name = models.CharField(max_length=100)
+    dosage = models.CharField(max_length=50)
+    instructions = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.dosage})"
+
+
+class LabReportRequest(models.Model):
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE)
+    test_name = models.CharField(max_length=100)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="lab_requests_made")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Lab Report Request: {self.test_name}"
+
+
+class LabReportResult(models.Model):
+    request = models.OneToOneField(LabReportRequest, on_delete=models.CASCADE)
+    pathologist = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    result_file = models.FileField(upload_to="lab_reports/", blank=True, null=True)
+    result_text = models.TextField(blank=True)
+    is_final = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Lab Result for {self.request.test_name}"
+
+
+class Medicine(models.Model):
+    name = models.CharField(max_length=100)
+    stock = models.IntegerField(default=0)
+    description = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notification for {self.user.username}"
+
+
+// api/serializers.py
+
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import (
+    PatientProfile, DoctorProfile, Appointment, Prescription, PrescriptionMedicine,
+    LabReportRequest, LabReportResult, Notification, Medicine
+)
+
+User = get_user_model()
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "email", "first_name", "last_name", "role", "phone")
+
+
+class PatientProfileSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role=User.ROLE_PATIENT))
+
+    class Meta:
+        model = PatientProfile
+        fields = "__all__"
+
+
+class ReceptionistPatientRegisterSerializer(serializers.ModelSerializer):
+    user = serializers.DictField(write_only=True)
+
+    class Meta:
+        model = PatientProfile
+        fields = ("id", "user", "dob", "gender", "address", "blood_group", "emergency_contact")
+
+    def create(self, validated_data):
+        user_data = validated_data.pop("user")
+        patient_user = User.objects.create_user(
+            username=user_data["username"],
+            password=user_data["password"],
+            role=User.ROLE_PATIENT
+        )
+        return PatientProfile.objects.create(user=patient_user, **validated_data)
+
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Appointment
+        fields = "__all__"
+
+
+class PrescriptionMedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrescriptionMedicine
+        fields = "__all__"
+
+
+class PrescriptionSerializer(serializers.ModelSerializer):
+    medicines = PrescriptionMedicineSerializer(many=True, required=False)
+
+    class Meta:
+        model = Prescription
+        fields = "__all__"
+
+    def create(self, validated_data):
+        medicines_data = validated_data.pop("medicines", [])
+        prescription = Prescription.objects.create(**validated_data)
+        for med in medicines_data:
+            PrescriptionMedicine.objects.create(prescription=prescription, **med)
+        return prescription
+
+
+class LabReportRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LabReportRequest
+        fields = "__all__"
+
+
+class LabReportResultSerializer(serializers.ModelSerializer):
+    request = serializers.PrimaryKeyRelatedField(read_only=True)
+    request_id = serializers.PrimaryKeyRelatedField(
+        write_only=True,
+        queryset=LabReportRequest.objects.all(),
+        source="request"
+    )
+
+    class Meta:
+        model = LabReportResult
+        fields = ("id", "request", "request_id", "pathologist", "result_file", "result_text", "created_at", "is_final")
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = "__all__"
+
+
+class MedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Medicine
+        fields = "__all__"
+
+// api/views
+from rest_framework import generics, permissions, viewsets
+from rest_framework.response import Response
+from django.utils import timezone
+from django.contrib.auth import get_user_model
+from .models import PatientProfile, Appointment, Prescription, PrescriptionMedicine, LabReportRequest, LabReportResult, Notification, Medicine
+from .serializers import (
+    UserSerializer, PatientProfileSerializer, ReceptionistPatientRegisterSerializer,
+    AppointmentSerializer, PrescriptionSerializer, PrescriptionMedicineSerializer,
+    LabReportRequestSerializer, LabReportResultSerializer,
+    NotificationSerializer, MedicineSerializer
+)
+from .permissions import IsReceptionist, IsDoctor, IsPatient, IsPathologist, IsPharmacist
+
+User = get_user_model()
+
+
+class ReceptionistRegisterPatientView(generics.CreateAPIView):
+    serializer_class = ReceptionistPatientRegisterSerializer
+    permission_classes = [permissions.IsAuthenticated, IsReceptionist]
+
+    def perform_create(self, serializer):
+        receptionist = self.request.user
+        patient_profile = serializer.save(
+            registration_type=PatientProfile.REGISTRATION_RECEPTIONIST,
+            registered_by=receptionist,
+            is_verified=True,
+            verified_at=timezone.now()
+        )
+        return patient_profile
+
+
+class PatientProfileViewSet(viewsets.ModelViewSet):
+    queryset = PatientProfile.objects.all()
+    serializer_class = PatientProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class AppointmentViewSet(viewsets.ModelViewSet):
+    queryset = Appointment.objects.all()
+    serializer_class = AppointmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PrescriptionViewSet(viewsets.ModelViewSet):
+    queryset = Prescription.objects.all()
+    serializer_class = PrescriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class LabReportRequestViewSet(viewsets.ModelViewSet):
+    queryset = LabReportRequest.objects.all()
+    serializer_class = LabReportRequestSerializer
+    permission_classes = [permissions.IsAuthenticated, IsDoctor]
+
+
+class LabReportResultViewSet(viewsets.ModelViewSet):
+    queryset = LabReportResult.objects.all()
+    serializer_class = LabReportResultSerializer
+    permission_classes = [permissions.IsAuthenticated, IsPathologist]
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class MedicineViewSet(viewsets.ModelViewSet):
+    queryset = Medicine.objects.all()
+    serializer_class = MedicineSerializer
+    permission_classes = [permissions.IsAuthenticated, IsPharmacist]
+
+// api/permissions.py
+
+from rest_framework.permissions import BasePermission
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+
+class IsAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_ADMIN)
+
+
+class IsDoctor(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_DOCTOR)
+
+
+class IsPatient(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_PATIENT)
+
+
+class IsReceptionist(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_RECEPTIONIST)
+
+
+class IsPharmacist(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_PHARMACIST)
+
+
+class IsPathologist(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == User.ROLE_PATHOLOGIST)
+
+
+// api/urls.py
+
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views import (
+    PatientProfileViewSet, AppointmentViewSet, PrescriptionViewSet,
+    LabReportRequestViewSet, LabReportResultViewSet, NotificationViewSet,
+    MedicineViewSet, ReceptionistRegisterPatientView
+)
+
+router = DefaultRouter()
+router.register(r'patients', PatientProfileViewSet, basename='patient')
+router.register(r'appointments', AppointmentViewSet, basename='appointment')
+router.register(r'prescriptions', PrescriptionViewSet, basename='prescription')
+router.register(r'lab-requests', LabReportRequestViewSet, basename='labrequest')
+router.register(r'lab-results', LabReportResultViewSet, basename='labresult')
+router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'medicines', MedicineViewSet, basename='medicine')
+
+urlpatterns = [
+    # 🔑 Authentication (JWT)
+    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
+    # 👩‍💼 Receptionist creates patient
+    path("receptionist/register-patient/", ReceptionistRegisterPatientView.as_view(), name="receptionist_register_patient"),
+
+    # 📌 All routers
+    path("", include(router.urls)),
+]
+
+// backend/urls.py
+
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include("api.urls")),  # ✅ all app endpoints go here
+]

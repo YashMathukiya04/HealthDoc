@@ -1,85 +1,68 @@
 # api/views.py
 from rest_framework import viewsets, status, generics
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 
-from .models import (
-    User, PatientProfile, DoctorProfile, Appointment,
-    Prescription, PrescriptionMedicine, Medicine,
-    LabReportRequest, LabReportResult, Notification
-)
-from .serializers import (
-    UserSerializer, RegisterPatientSerializer, PatientProfileSerializer,
-    DoctorProfileSerializer, AppointmentSerializer, MedicineSerializer,
-    PrescriptionSerializer, LabReportRequestSerializer, LabReportResultSerializer,
-    NotificationSerializer
-)
-from .permissions import (
-    IsDoctor, IsPatient, IsReceptionist,
-    IsPharmacist, IsPathologist, IsAdmin
-)
-from rest_framework.routers import DefaultRouter
+from .models import (PatientProfile, DoctorProfile, Appointment, Prescription, PrescriptionMedicine, Medicine, LabReportRequest, LabReportResult, Notification)
+from .serializers import (UserSerializer, RegisterPatientSerializer, PatientProfileSerializer, DoctorProfileSerializer, AppointmentSerializer, PrescriptionSerializer, MedicineSerializer, LabRequestSerializer, LabResultSerializer, NotificationSerializer)
+from .permissions import IsDoctor, IsReceptionist, IsPharmacist, IsPathologist, IsAdmin, IsPatient
 
-# --------------------------
-# USER MANAGEMENT
-# --------------------------
+User = get_user_model()
 
+# Simple user management endpoint (admin creates other users)
 class UserViewSet(viewsets.ModelViewSet):
-    """Admin can manage all users"""
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
 
-# --------------------------
-# PATIENT REGISTRATION
-# --------------------------
+# Endpoint: current-user
+class CurrentUserView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
+    def get_object(self):
+        return self.request.user
+
+# Patient self registration
 class PatientSelfRegisterView(generics.CreateAPIView):
-    """Patient self-signup"""
-    queryset = User.objects.all()
     serializer_class = RegisterPatientSerializer
     permission_classes = [AllowAny]
 
     def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        ctx.update({'request': self.request})
-        return ctx
+        return {'request': self.request}
 
-
+# Receptionist registering patient
 class ReceptionistRegisterPatientView(generics.CreateAPIView):
-    """Receptionist registers patient"""
-    queryset = User.objects.all()
     serializer_class = RegisterPatientSerializer
     permission_classes = [IsAuthenticated, IsReceptionist]
 
-    def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        ctx.update({'request': self.request})
-        return ctx
+    def perform_create(self, serializer):
+        request = self.request
+        user = serializer.save()
+        # update patient profile registration type and registered_by
+        profile = user.patient_profile
+        profile.registration_type = profile.REG_RECEPTION
+        profile.registered_by = request.user
+        profile.save()
 
-# --------------------------
-# PROFILES
-# --------------------------
-
+# Doctor profile view
 class DoctorProfileViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = DoctorProfile.objects.select_related('user').all()
     serializer_class = DoctorProfileSerializer
     permission_classes = [IsAuthenticated]
 
-
+# Patient profile view
 class PatientProfileViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = PatientProfile.objects.select_related('user', 'registered_by').all()
+    queryset = PatientProfile.objects.select_related('user','registered_by').all()
     serializer_class = PatientProfileSerializer
     permission_classes = [IsAuthenticated]
 
-# --------------------------
-# APPOINTMENTS
-# --------------------------
-
+# Appointments
 class AppointmentViewSet(viewsets.ModelViewSet):
-    queryset = Appointment.objects.select_related('patient__user', 'doctor__user').all()
+    queryset = Appointment.objects.select_related('patient__user','doctor__user').all()
     serializer_class = AppointmentSerializer
     permission_classes = [IsAuthenticated]
 
@@ -89,62 +72,50 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return Appointment.objects.filter(patient__user=user)
         if user.role == User.ROLE_DOCTOR:
             return Appointment.objects.filter(doctor__user=user)
-        if user.role in (User.ROLE_RECEPTIONIST, User.ROLE_ADMIN):
+        if user.role == User.ROLE_RECEPTIONIST or user.role == User.ROLE_ADMIN:
             return Appointment.objects.all()
-        return super().get_queryset()
+        return Appointment.objects.none()
 
-    def create(self, request, *args, **kwargs):
-        user = request.user
-        data = request.data.copy()
+    def perform_create(self, serializer):
+        user = self.request.user
+        data = serializer.validated_data
+        # If patient is creating, ensure it's their patientprofile
         if user.role == User.ROLE_PATIENT:
-            # patient books own appointment
-            patient_profile = getattr(user, 'patientprofile', None)
+            patient_profile = getattr(user, 'patient_profile', None)
             if not patient_profile:
-                return Response({'detail': 'No patient profile'}, status=status.HTTP_400_BAD_REQUEST)
-            data['patient_id'] = patient_profile.id
-        elif user.role not in (User.ROLE_RECEPTIONIST, User.ROLE_ADMIN):
-            return Response({'detail': 'Not allowed'}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        appt = serializer.save(created_by=user)
-        return Response(self.get_serializer(appt).data, status=status.HTTP_201_CREATED)
+                raise serializers.ValidationError("No patient profile.")
+            serializer.save(created_by=user, patient=patient_profile)
+        else:
+            serializer.save(created_by=user)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsReceptionist])
     def reschedule(self, request, pk=None):
         appt = self.get_object()
-        new_date = request.data.get('date')
-        new_time = request.data.get('time')
-        if not new_date or not new_time:
-            return Response({'detail': 'date and time required'}, status=status.HTTP_400_BAD_REQUEST)
-        appt.date = new_date
-        appt.time = new_time
-        appt.status = 'RESCHEDULED'
+        date = request.data.get('date')
+        time = request.data.get('time')
+        if date:
+            appt.date = date
+        if time:
+            appt.time = time
+        appt.status = Appointment.STATUS_RESCHEDULED
         appt.save()
-        Notification.objects.create(
-            user=appt.patient.user,
-            message=f"Your appointment was rescheduled to {appt.date} {appt.time}",
-            type='APPOINTMENT'
-        )
-        return Response({'status': 'rescheduled'})
+        Notification.objects.create(user=appt.patient.user, message=f"Your appointment was rescheduled to {appt.date} {appt.time}", type=Notification.TYPE_APPT)
+        return Response({'status':'rescheduled'})
 
-# --------------------------
-# MEDICINE & PRESCRIPTIONS
-# --------------------------
-
+# Medicines
 class MedicineViewSet(viewsets.ModelViewSet):
     queryset = Medicine.objects.all()
     serializer_class = MedicineSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsPharmacist|IsAdmin]
 
-
+# Prescriptions
 class PrescriptionViewSet(viewsets.ModelViewSet):
-    queryset = Prescription.objects.select_related('doctor', 'patient', 'appointment').all()
+    queryset = Prescription.objects.select_related('doctor','patient','appointment').all()
     serializer_class = PrescriptionSerializer
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create','update','partial_update','destroy']:
             return [IsAuthenticated(), IsDoctor()]
         return [IsAuthenticated()]
 
@@ -156,15 +127,12 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
             return Prescription.objects.filter(doctor__user=user)
         if user.role == User.ROLE_PHARMACIST:
             return Prescription.objects.all()
-        return super().get_queryset()
+        return Prescription.objects.none()
 
-# --------------------------
-# LAB REPORTS
-# --------------------------
-
-class LabReportRequestViewSet(viewsets.ModelViewSet):
-    queryset = LabReportRequest.objects.select_related('doctor', 'patient').all()
-    serializer_class = LabReportRequestSerializer
+# Lab requests and results
+class LabRequestViewSet(viewsets.ModelViewSet):
+    queryset = LabReportRequest.objects.select_related('doctor','patient').all()
+    serializer_class = LabRequestSerializer
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
@@ -172,57 +140,41 @@ class LabReportRequestViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsDoctor()]
         return [IsAuthenticated()]
 
-
-class LabReportResultViewSet(viewsets.ModelViewSet):
-    queryset = LabReportResult.objects.select_related('request', 'pathologist').all()
-    serializer_class = LabReportResultSerializer
+class LabResultViewSet(viewsets.ModelViewSet):
+    queryset = LabReportResult.objects.select_related('request','pathologist').all()
+    serializer_class = LabResultSerializer
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'partial_update', 'finalize']:
+        if self.action in ['create','partial_update','finalize']:
             return [IsAuthenticated(), IsPathologist()]
         return [IsAuthenticated()]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsPathologist])
     def finalize(self, request, pk=None):
         result = self.get_object()
-        result_text = request.data.get('result_text')
+        result_text = request.data.get('result_text', '')
         if 'result_file' in request.FILES:
             result.result_file = request.FILES['result_file']
         if result_text:
             result.result_text = result_text
+        # store pathologist as current user
         result.pathologist = request.user
         result.is_final = True
         result.save()
-        Notification.objects.create(
-            user=result.request.patient.user,
-            message=f"Your lab report '{result.request.test_name}' is ready.",
-            type='LAB_REPORT'
-        )
-        return Response(self.get_serializer(result).data)
+        Notification.objects.create(user=result.request.patient.user, message=f"Your lab report '{result.request.test_name}' is ready.", type=Notification.TYPE_LAB)
+        return Response({'status':'finalized'})
 
-# --------------------------
-# NOTIFICATIONS
-# --------------------------
-
+# Notifications
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Notification.objects.all().order_by('-created_at')
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user).order_by('-created_at')
 
-# --------------------------
-# ROUTER
-# --------------------------
+from django.http import HttpResponse
 
-router = DefaultRouter()
-router.register(r'users', UserViewSet, basename='user')
-router.register(r'doctors', DoctorProfileViewSet, basename='doctor')
-router.register(r'patients', PatientProfileViewSet, basename='patient')
-router.register(r'appointments', AppointmentViewSet, basename='appointment')
-router.register(r'medicines', MedicineViewSet, basename='medicine')
-router.register(r'prescriptions', PrescriptionViewSet, basename='prescription')
-router.register(r'lab-requests', LabReportRequestViewSet, basename='labrequest')
-router.register(r'lab-results', LabReportResultViewSet, basename='labresult')
-router.register(r'notifications', NotificationViewSet, basename='notification')
+def home(request):
+    return HttpResponse("Welcome to HealthDoc API!")

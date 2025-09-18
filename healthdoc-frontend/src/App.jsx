@@ -1,139 +1,83 @@
 // src/App.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import api, { setAuthToken } from "./api/api";
+import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./auth/Login";
+import RegisterPatient from "./auth/RegisterPatient";
+import { setAuthToken, fetchCurrentUser } from "./api/api";
 
-// Pages
-import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
-import ManageUsers from "./pages/admin/ManageUsers.jsx";
-import MedicalStock from "./pages/admin/MedicalStock.jsx";
-
-import DoctorDashboard from "./pages/doctor/DoctorDashboard.jsx";
-import DoctorAppointments from "./pages/doctor/DoctorAppointments.jsx";
-
-import ReceptionistDashboard from "./pages/receptionist/ReceptionistDashboard.jsx";
-import CreateAppointment from "./pages/receptionist/CreateAppointment.jsx";
-import RegisterPatient from "./pages/receptionist/RegisterPatient.jsx";
-
-import PatientDashboard from "./pages/patient/PatientDashboard.jsx";
-import BookAppointments from "./pages/patient/BookAppointments.jsx";
-
-// Role-Based Route Wrapper
-const PrivateRoute = ({ children, allowedRoles, userRole }) => {
-  if (!userRole) return <Navigate to="/login" />; // not logged in
-  if (!allowedRoles.includes(userRole)) return <Navigate to="/unauthorized" />; // no access
-  return children;
-};
+// Pages (admin)
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import ManageUsers from "./pages/admin/ManageUsers";
+// doctor
+import DoctorDashboard from "./pages/doctor/DoctorDashboard";
+import DoctorAppointments from "./pages/doctor/DoctorAppointments";
+// receptionist
+import ReceptionistDashboard from "./pages/receptionist/ReceptionistDashboard";
+import CreateAppointment from "./pages/receptionist/CreateAppointment";
+import RegisterPatientPage from "./pages/receptionist/CreateAppointment"; // optional
+// patient
+import PatientDashboard from "./pages/patient/PatientDashboard";
+import BookAppointment from "./pages/patient/BookAppointment";
+// pharmacist
+import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
+// pathologist
+import PathologistDashboard from "./pages/pathologist/PathologistDashboard";
 
 const App = () => {
-  const [user, setUser] = useState(null); // store user info (role, username)
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  });
 
   useEffect(() => {
-    // Example: fetch current logged-in user
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access");
     if (token) {
       setAuthToken(token);
-      api.get("current-user/")
-        .then((res) => setUser(res.data))
-        .catch(() => setUser(null));
+      // try refresh current user in case localStorage has stale user
+      fetchCurrentUser().then(res => {
+        setUser(res.data);
+        localStorage.setItem("user", JSON.stringify(res.data));
+      }).catch(() => {
+        setUser(null);
+        localStorage.removeItem("user");
+      });
     }
   }, []);
 
   return (
     <Router>
+      <Navbar user={user} onLogout={setUser} />
       <Routes>
-        {/* ----- Admin Routes ----- */}
-        <Route 
-          path="/admin/dashboard" 
-          element={
-            <PrivateRoute allowedRoles={["ADMIN"]} userRole={user?.role}>
-              <AdminDashboard />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/admin/manage-users" 
-          element={
-            <PrivateRoute allowedRoles={["ADMIN"]} userRole={user?.role}>
-              <ManageUsers />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/admin/medical-stock" 
-          element={
-            <PrivateRoute allowedRoles={["ADMIN"]} userRole={user?.role}>
-              <MedicalStock />
-            </PrivateRoute>
-          } 
-        />
+        <Route path="/login" element={<Login onLogin={setUser} />} />
+        <Route path="/register" element={<RegisterPatient />} />
+        <Route path="/unauthorized" element={<div>Unauthorized</div>} />
 
-        {/* ----- Doctor Routes ----- */}
-        <Route 
-          path="/doctor/dashboard" 
-          element={
-            <PrivateRoute allowedRoles={["DOCTOR"]} userRole={user?.role}>
-              <DoctorDashboard />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/doctor/appointments" 
-          element={
-            <PrivateRoute allowedRoles={["DOCTOR"]} userRole={user?.role}>
-              <DoctorAppointments />
-            </PrivateRoute>
-          } 
-        />
+        {/* Admin */}
+        <Route path="/admin/dashboard" element={<ProtectedRoute user={user} allowedRoles={["ADMIN"]}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/manage-users" element={<ProtectedRoute user={user} allowedRoles={["ADMIN"]}><ManageUsers /></ProtectedRoute>} />
 
-        {/* ----- Receptionist Routes ----- */}
-        <Route 
-          path="/receptionist/dashboard" 
-          element={
-            <PrivateRoute allowedRoles={["RECEPTIONIST"]} userRole={user?.role}>
-              <ReceptionistDashboard />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/receptionist/create-appointment" 
-          element={
-            <PrivateRoute allowedRoles={["RECEPTIONIST"]} userRole={user?.role}>
-              <CreateAppointment />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/receptionist/register-patient" 
-          element={
-            <PrivateRoute allowedRoles={["RECEPTIONIST"]} userRole={user?.role}>
-              <RegisterPatient />
-            </PrivateRoute>
-          } 
-        />
+        {/* Doctor */}
+        <Route path="/doctor/dashboard" element={<ProtectedRoute user={user} allowedRoles={["DOCTOR"]}><DoctorDashboard /></ProtectedRoute>} />
+        <Route path="/doctor/appointments" element={<ProtectedRoute user={user} allowedRoles={["DOCTOR"]}><DoctorAppointments /></ProtectedRoute>} />
 
-        {/* ----- Patient Routes ----- */}
-        <Route 
-          path="/patient/dashboard" 
-          element={
-            <PrivateRoute allowedRoles={["PATIENT"]} userRole={user?.role}>
-              <PatientDashboard />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/patient/book-appointment" 
-          element={
-            <PrivateRoute allowedRoles={["PATIENT"]} userRole={user?.role}>
-              <BookAppointments />
-            </PrivateRoute>
-          } 
-        />
+        {/* Receptionist */}
+        <Route path="/receptionist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["RECEPTIONIST"]}><ReceptionistDashboard /></ProtectedRoute>} />
+        <Route path="/receptionist/create-appointment" element={<ProtectedRoute user={user} allowedRoles={["RECEPTIONIST"]}><CreateAppointment /></ProtectedRoute>} />
+        <Route path="/receptionist/register-patient" element={<ProtectedRoute user={user} allowedRoles={["RECEPTIONIST"]}><RegisterPatientPage /></ProtectedRoute>} />
 
-        {/* ----- Public / Fallback Routes ----- */}
-        <Route path="/" element={<Navigate to={user ? `/${user.role.toLowerCase()}/dashboard` : "/login"} />} />
-        <Route path="/login" element={<div>Login Page (to implement)</div>} />
-        <Route path="/unauthorized" element={<div>Unauthorized Access</div>} />
+        {/* Patient */}
+        <Route path="/patient/dashboard" element={<ProtectedRoute user={user} allowedRoles={["PATIENT"]}><PatientDashboard /></ProtectedRoute>} />
+        <Route path="/patient/book-appointment" element={<ProtectedRoute user={user} allowedRoles={["PATIENT"]}><BookAppointment /></ProtectedRoute>} />
+
+        {/* Pharmacist */}
+        <Route path="/pharmacist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["PHARMACIST"]}><PharmacistDashboard /></ProtectedRoute>} />
+
+        {/* Pathologist */}
+        <Route path="/pathologist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["LAB_TECHNICIAN"]}><PathologistDashboard /></ProtectedRoute>} />
+
+        {/* default */}
+        <Route path="/" element={user ? <Navigate to={`/${user.role.toLowerCase()}/dashboard`} /> : <Navigate to="/login" />} />
         <Route path="*" element={<div>404 Not Found</div>} />
       </Routes>
     </Router>
