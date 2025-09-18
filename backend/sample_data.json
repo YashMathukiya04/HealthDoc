@@ -1,0 +1,82 @@
+[
+  {
+    "model": "api.user",
+    "pk": 1,
+    "fields": {
+      "username": "admin",
+      "email": "admin@healthdoc.com",
+      "password": "pbkdf2_sha256$260000$...", 
+      "role": "admin",
+      "is_superuser": true,
+      "is_staff": true
+    }
+  },
+  {
+    "model": "api.user",
+    "pk": 2,
+    "fields": {
+      "username": "reception1",
+      "email": "reception1@healthdoc.com",
+      "password": "pbkdf2_sha256$260000$...",
+      "role": "receptionist"
+    }
+  },
+  {
+    "model": "api.user",
+    "pk": 3,
+    "fields": {
+      "username": "doctor1",
+      "email": "doctor1@healthdoc.com",
+      "password": "pbkdf2_sha256$260000$...",
+      "role": "doctor"
+    }
+  },
+  {
+    "model": "api.user",
+    "pk": 4,
+    "fields": {
+      "username": "patient1",
+      "email": "patient1@healthdoc.com",
+      "password": "pbkdf2_sha256$260000$...",
+      "role": "patient"
+    }
+  },
+  {
+    "model": "api.patientprofile",
+    "pk": 1,
+    "fields": {
+      "user": 4,
+      "dob": "1990-01-01",
+      "gender": "male",
+      "address": "123 Main St",
+      "blood_group": "A+",
+      "emergency_contact": "9999999999",
+      "registration_type": "self",
+      "registered_by": null,
+      "is_verified": true
+    }
+  },
+  {
+    "model": "api.doctorprofile",
+    "pk": 1,
+    "fields": {
+      "user": 3,
+      "specialization": "Cardiology",
+      "qualifications": "MBBS, MD",
+      "experience": 10,
+      "availability": {"mon":"9-17","tue":"9-17"}
+    }
+  },
+  {
+    "model": "api.medicine",
+    "pk": 1,
+    "fields": {
+      "name": "Paracetamol",
+      "description": "Pain reliever",
+      "manufacturer": "ABC Pharma",
+      "stock": 100,
+      "price": "1.50",
+      "expiry_date": "2026-12-31"
+    }
+  }
+]
