@@ -65,7 +65,7 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     height: "100vh",
-    background: "linear-gradient(to right, #4facfe, #00f2fe)",
+    background: "linear-gradient(to right, #edf1f4ff, #dde6e7ff)",
     fontFamily: "Arial, sans-serif",
   },
   card: {
