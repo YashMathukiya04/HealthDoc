@@ -1,8 +1,9 @@
-# api/management/commands/create_sample.py
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from api.models import DoctorProfile, PatientProfile, Medicine, Appointment, LabReportRequest, Prescription
-
+from api.models import (
+    DoctorProfile, PatientProfile, PharmacistProfile, ReceptionistProfile, PathologistProfile,
+    Medicine, Appointment, LabReportRequest, Prescription
+)
 from datetime import date, time
 
 User = get_user_model()
@@ -11,7 +12,7 @@ class Command(BaseCommand):
     help = "Create sample users and data"
 
     def handle(self, *args, **options):
-        # ---------- Create Users ----------
+        # ---------- Create Admin ----------
         if not User.objects.filter(username='admin1').exists():
             admin = User.objects.create_superuser(
                 username='admin1',
@@ -21,6 +22,7 @@ class Command(BaseCommand):
             )
             self.stdout.write(self.style.SUCCESS("Created admin1/adminpass"))
 
+        # ---------- Create Doctor ----------
         if not User.objects.filter(username='doctor1').exists():
             doctor_user = User.objects.create_user(
                 username='doctor1',
@@ -39,17 +41,8 @@ class Command(BaseCommand):
                 experience_years=5
             )
             self.stdout.write(self.style.SUCCESS("Created doctor1/doctorpass"))
-        else:
-            self.stdout.write(self.style.WARNING("DoctorProfile for doctor1 already exists"))
 
-        if not User.objects.filter(username='reception1').exists():
-            User.objects.create_user(
-                username='reception1',
-                password='receptionpass',
-                role=User.ROLE_RECEPTIONIST
-            )
-            self.stdout.write(self.style.SUCCESS("Created reception1/receptionpass"))
-
+        # ---------- Create Patient ----------
         if not User.objects.filter(username='patient1').exists():
             patient_user = User.objects.create_user(
                 username='patient1',
@@ -68,8 +61,61 @@ class Command(BaseCommand):
                 registration_type=PatientProfile.REG_SELF
             )
             self.stdout.write(self.style.SUCCESS("Created patient1/patientpass"))
+
+        # ---------- Create Receptionist ----------
+        if not User.objects.filter(username='reception1').exists():
+            receptionist_user = User.objects.create_user(
+                username='reception1',
+                password='receptionpass',
+                role=User.ROLE_RECEPTIONIST
+            )
         else:
-            self.stdout.write(self.style.WARNING("PatientProfile for patient1 already exists"))
+            receptionist_user = User.objects.get(username='reception1')
+
+        if not ReceptionistProfile.objects.filter(user=receptionist_user).exists():
+            ReceptionistProfile.objects.create(
+                user=receptionist_user,
+                shift="Morning",
+                desk_number="R1"
+            )
+            self.stdout.write(self.style.SUCCESS("Created receptionist1/receptionpass"))
+
+        # ---------- Create Pharmacist ----------
+        if not User.objects.filter(username='pharma1').exists():
+            pharmacist_user = User.objects.create_user(
+                username='pharma1',
+                password='pharmapass',
+                role=User.ROLE_PHARMACIST
+            )
+        else:
+            pharmacist_user = User.objects.get(username='pharma1')
+
+        if not PharmacistProfile.objects.filter(user=pharmacist_user).exists():
+            PharmacistProfile.objects.create(
+                user=pharmacist_user,
+                qualifications="B.Pharm",
+                experience_years=2
+            )
+            self.stdout.write(self.style.SUCCESS("Created pharma1/pharmapass"))
+
+        # ---------- Create Pathologist ----------
+        if not User.objects.filter(username='patho1').exists():
+            pathologist_user = User.objects.create_user(
+                username='patho1',
+                password='pathopass',
+                role=User.ROLE_PATHOLOGIST
+            )
+        else:
+            pathologist_user = User.objects.get(username='patho1')
+
+        if not PathologistProfile.objects.filter(user=pathologist_user).exists():
+            PathologistProfile.objects.create(
+                user=pathologist_user,
+                qualifications="MD Pathology",
+                specialization="Hematology",
+                experience_years=4
+            )
+            self.stdout.write(self.style.SUCCESS("Created patho1/pathopass"))
 
         # ---------- Create Medicines ----------
         medicines = [
@@ -100,13 +146,14 @@ class Command(BaseCommand):
         # ---------- Create Prescription ----------
         appointment = Appointment.objects.first()
         if appointment:
-            prescription = Prescription.objects.create(
-                doctor=doctor_profile,
-                patient=patient_profile,
-                appointment=appointment,
-                notes="Take medicines as prescribed"
-            )
-            self.stdout.write(self.style.SUCCESS("Created sample prescription"))
+            if not Prescription.objects.filter(appointment=appointment).exists():
+                Prescription.objects.create(
+                    doctor=doctor_profile,
+                    patient=patient_profile,
+                    appointment=appointment,
+                    notes="Take medicines as prescribed"
+                )
+                self.stdout.write(self.style.SUCCESS("Created sample prescription"))
 
         # ---------- Create Lab Report Request ----------
         if doctor_profile and patient_profile:
@@ -119,4 +166,4 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(self.style.SUCCESS("Created sample lab report request"))
 
-        self.stdout.write(self.style.SUCCESS("Sample data creation completed!"))
+        self.stdout.write(self.style.SUCCESS("✅ Sample data creation completed!"))

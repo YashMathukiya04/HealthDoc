@@ -72,3 +72,13 @@ frontend/
 | Doctor       | `doctor1`    | `doctorpass`    |
 | Receptionist | `reception1` | `receptionpass` |
 | Patient      | `patient1`   | `patientpass`   |
+
+
+| Username     | Password        | Role         |
+| ------------ | --------------- | ------------ |
+| `admin1`     | `adminpass`     | Admin        |
+| `doctor1`    | `doctorpass`    | Doctor       |
+| `patient1`   | `patientpass`   | Patient      |
+| `reception1` | `receptionpass` | Receptionist |
+| `pharma1`    | `pharmapass`    | Pharmacist   |
+| `patho1`     | `pathopass`     | Pathologist  |

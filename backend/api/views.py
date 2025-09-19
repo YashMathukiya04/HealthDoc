@@ -6,8 +6,12 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
-from .models import (PatientProfile, DoctorProfile, Appointment, Prescription, PrescriptionMedicine, Medicine, LabReportRequest, LabReportResult, Notification)
+from .models import (
+    User, PatientProfile, DoctorProfile, PharmacistProfile, ReceptionistProfile, PathologistProfile,
+    Appointment, Medicine, Prescription, LabReportRequest, LabReportResult, Notification
+)
 from .serializers import (UserSerializer, RegisterPatientSerializer, PatientProfileSerializer, DoctorProfileSerializer, AppointmentSerializer, PrescriptionSerializer, MedicineSerializer, LabRequestSerializer, LabResultSerializer, NotificationSerializer)
+
 from .permissions import IsDoctor, IsReceptionist, IsPharmacist, IsPathologist, IsAdmin, IsPatient
 
 User = get_user_model()
@@ -173,6 +177,27 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+# api/views.py (add these below existing imports and viewsets)
+
+from .serializers import PharmacistProfileSerializer, ReceptionistProfileSerializer, PathologistProfileSerializer
+
+class PharmacistProfileViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = PharmacistProfile.objects.select_related('user').all()
+    serializer_class = PharmacistProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+class ReceptionistProfileViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ReceptionistProfile.objects.select_related('user').all()
+    serializer_class = ReceptionistProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+class PathologistProfileViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = PathologistProfile.objects.select_related('user').all()
+    serializer_class = PathologistProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+
 
 from django.http import HttpResponse
 

@@ -4,8 +4,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     UserViewSet, CurrentUserView, PatientSelfRegisterView, ReceptionistRegisterPatientView,
     DoctorProfileViewSet, PatientProfileViewSet, AppointmentViewSet,
-    MedicineViewSet, PrescriptionViewSet, LabRequestViewSet, LabResultViewSet, NotificationViewSet
+    MedicineViewSet, PrescriptionViewSet, LabRequestViewSet, LabResultViewSet, NotificationViewSet,
+    PharmacistProfileViewSet, ReceptionistProfileViewSet, PathologistProfileViewSet  # ✅ import these
 )
+
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 router = DefaultRouter()
@@ -18,6 +20,11 @@ router.register(r'prescriptions', PrescriptionViewSet, basename='prescription')
 router.register(r'lab-requests', LabRequestViewSet, basename='labrequest')
 router.register(r'lab-results', LabResultViewSet, basename='labresult')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'pharmacists', PharmacistProfileViewSet, basename='pharmacistprofile')  # ✅
+router.register(r'receptionists', ReceptionistProfileViewSet, basename='receptionistprofile')  # ✅
+router.register(r'pathologists', PathologistProfileViewSet, basename='pathologistprofile')  # ✅
+
+
 
 urlpatterns = [
     path('', include(router.urls)),

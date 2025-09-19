@@ -1,9 +1,10 @@
 # api/serializers.py
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    PatientProfile, DoctorProfile, Appointment,
-    Prescription, PrescriptionMedicine, Medicine,
+    PatientProfile, DoctorProfile, PharmacistProfile, ReceptionistProfile, PathologistProfile,
+    Appointment, Prescription, PrescriptionMedicine, Medicine,
     LabReportRequest, LabReportResult, Notification
 )
 
@@ -21,15 +22,13 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'phone', 'is_active', 'password'
         )
-        extra_kwargs = {
-            "password": {"write_only": True}
-        }
+        extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
         user = User(**validated_data)
         if password:
-            user.set_password(password)   # ✅ hash password
+            user.set_password(password)
         else:
             user.set_unusable_password()
         user.save()
@@ -40,10 +39,9 @@ class UserSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if password:
-            instance.set_password(password)  # ✅ hash on update too
+            instance.set_password(password)
         instance.save()
         return instance
-
 
 # -----------------------
 # Patient Registration
@@ -73,7 +71,7 @@ class RegisterPatientSerializer(serializers.ModelSerializer):
             **validated_data,
             role=User.ROLE_PATIENT
         )
-        user.set_password(password)  # ✅ hash password
+        user.set_password(password)
         user.save()
 
         PatientProfile.objects.update_or_create(
@@ -81,7 +79,6 @@ class RegisterPatientSerializer(serializers.ModelSerializer):
             defaults={**profile_fields, 'registration_type': PatientProfile.REG_SELF}
         )
         return user
-
 
 # -----------------------
 # Profile Serializers
@@ -100,7 +97,6 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'registration_type', 'registered_by', 'created_at'
         )
 
-
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     user_id = serializers.PrimaryKeyRelatedField(
@@ -114,6 +110,35 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             'qualifications', 'experience_years', 'availability'
         )
 
+class PharmacistProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=User.objects.filter(role=User.ROLE_PHARMACIST), source='user'
+    )
+
+    class Meta:
+        model = PharmacistProfile
+        fields = ('id', 'user', 'user_id', 'qualifications', 'experience_years')
+
+class ReceptionistProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=User.objects.filter(role=User.ROLE_RECEPTIONIST), source='user'
+    )
+
+    class Meta:
+        model = ReceptionistProfile
+        fields = ('id', 'user', 'user_id', 'shift', 'desk_number')
+
+class PathologistProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=User.objects.filter(role=User.ROLE_PATHOLOGIST), source='user'
+    )
+
+    class Meta:
+        model = PathologistProfile
+        fields = ('id', 'user', 'user_id', 'specialization', 'qualifications', 'experience_years')
 
 # -----------------------
 # Appointment
@@ -145,7 +170,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Doctor already has an appointment at this date/time")
         return data
 
-
 # -----------------------
 # Prescription
 # -----------------------
@@ -153,7 +177,6 @@ class PrescriptionMedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionMedicine
         fields = ('id', 'medicine_name', 'dosage', 'duration', 'pharmacist_note', 'status')
-
 
 class PrescriptionSerializer(serializers.ModelSerializer):
     items = PrescriptionMedicineSerializer(many=True, write_only=True)
@@ -173,7 +196,6 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             PrescriptionMedicine.objects.create(prescription=prescription, **it)
         return prescription
 
-
 # -----------------------
 # Medicines
 # -----------------------
@@ -182,29 +204,32 @@ class MedicineSerializer(serializers.ModelSerializer):
         model = Medicine
         fields = ('id', 'name', 'description', 'manufacturer', 'stock', 'price', 'expiry_date')
 
-
 # -----------------------
 # Lab
 # -----------------------
 class LabRequestSerializer(serializers.ModelSerializer):
     doctor = DoctorProfileSerializer(read_only=True)
-    doctor_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=DoctorProfile.objects.all(), source='doctor')
+    doctor_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=DoctorProfile.objects.all(), source='doctor'
+    )
     patient = PatientProfileSerializer(read_only=True)
-    patient_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=PatientProfile.objects.all(), source='patient')
+    patient_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=PatientProfile.objects.all(), source='patient'
+    )
 
     class Meta:
         model = LabReportRequest
         fields = ('id', 'doctor', 'doctor_id', 'patient', 'patient_id', 'appointment', 'test_name', 'status', 'created_at')
 
-
 class LabResultSerializer(serializers.ModelSerializer):
     request = LabRequestSerializer(read_only=True)
-    request_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=LabReportRequest.objects.all(), source='request')
+    request_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=LabReportRequest.objects.all(), source='request'
+    )
 
     class Meta:
         model = LabReportResult
         fields = ('id', 'request', 'request_id', 'pathologist', 'result_file', 'result_text', 'created_at', 'is_final')
-
 
 # -----------------------
 # Notifications
