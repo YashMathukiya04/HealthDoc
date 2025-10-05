@@ -8,6 +8,8 @@ from .views import (
     PharmacistProfileViewSet, ReceptionistProfileViewSet, PathologistProfileViewSet  # ✅ import these
 )
 
+from .views import patient_appointments, patient_prescriptions, patient_lab_reports
+
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 router = DefaultRouter()
@@ -33,4 +35,7 @@ urlpatterns = [
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('auth/register/', PatientSelfRegisterView.as_view(), name='patient_self_register'),
     path('auth/register-by-receptionist/', ReceptionistRegisterPatientView.as_view(), name='patient_register_by_receptionist'),
+    path("patient/appointments/", patient_appointments, name="patient-appointments"),
+    path("patient/prescriptions/", patient_prescriptions, name="patient-prescriptions"),
+    path("patient/lab-reports/", patient_lab_reports, name="patient-lab-reports"),
 ]

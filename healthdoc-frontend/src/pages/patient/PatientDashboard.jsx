@@ -1,131 +1,139 @@
 // src/pages/patient/PatientDashboard.jsx
+
 import React, { useEffect, useState } from "react";
 import api from "../../api/api";
 
-const PatientDashboard = () => {
-  const [appointments, setAppointments] = useState([]);
-
-  useEffect(() => {
-    api
-      .get("appointments/")
-      .then((res) => {
-        const user = JSON.parse(localStorage.getItem("user"));
-        if (user) {
-          const filtered = res.data.filter((a) => {
-            if (a.patient && typeof a.patient === "object")
-              return a.patient.user?.id === user.id || a.patient.id === user.id;
-            return false;
-          });
-          setAppointments(filtered);
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "COMPLETED":
-        return "#28a745"; // green
-      case "PENDING":
-        return "#ffc107"; // yellow
-      case "CANCELLED":
-        return "#dc3545"; // red
-      default:
-        return "#6c757d"; // gray
-    }
-  };
-
-  return (
-    <div style={styles.container}>
-      <h2 style={styles.heading}>🧑‍⚕️ Patient Dashboard</h2>
-      <h3 style={styles.subheading}>Your Appointments</h3>
-
-      {appointments.length > 0 ? (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>No.</th>
-              <th style={styles.th}>Doctor</th>
-              <th style={styles.th}>Date</th>
-              <th style={styles.th}>Time</th>
-              <th style={styles.th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {appointments.map((a, index) => (
-              <tr key={a.id} style={index % 2 === 0 ? styles.rowEven : styles.rowOdd}>
-                <td style={styles.td}>{index + 1}</td>
-                <td style={styles.td}>
-                  {a.doctor?.user?.username || a.doctor?.user || a.doctor}
-                </td>
-                <td style={styles.td}>{a.date}</td>
-                <td style={styles.td}>{a.time}</td>
-                <td style={{ ...styles.td, color: getStatusColor(a.status), fontWeight: "bold" }}>
-                  {a.status}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p style={styles.noData}>No appointments found.</p>
-      )}
-    </div>
-  );
+const safeDate = (dateStr) => {
+  if (!dateStr) return "-";
+  const parsed = new Date(dateStr);
+  return isNaN(parsed) ? dateStr : parsed.toLocaleString();
 };
 
-const styles = {
-  container: {
-    padding: "30px",
-    maxWidth: "1000px",
-    margin: "0 auto",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    backgroundColor: "#f9fafb",
-    minHeight: "100vh",
-  },
-  heading: {
-    fontSize: "28px",
-    color: "#333",
-    marginBottom: "10px",
-  },
-  subheading: {
-    fontSize: "20px",
-    color: "#555",
-    marginBottom: "20px",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    overflow: "hidden",
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.05)",
-  },
-  th: {
-    padding: "14px",
-    backgroundColor: "#007bff",
-    color: "#fff",
-    textAlign: "left",
-    fontWeight: "bold",
-    borderBottom: "2px solid #0056b3",
-  },
-  td: {
-    padding: "12px",
-    borderBottom: "1px solid #eee",
-    fontSize: "15px",
-    color: "#333",
-  },
-  rowEven: {
-    backgroundColor: "#f8f9fa",
-  },
-  rowOdd: {
-    backgroundColor: "#ffffff",
-  },
-  noData: {
-    fontStyle: "italic",
-    color: "#888",
-    marginTop: "20px",
-  },
+const PatientDashboard = () => {
+  const [appointments, setAppointments] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [labReports, setLabReports] = useState([]);
+
+  useEffect(() => {
+    api.get("patient/appointments/")
+      .then((res) => setAppointments(res.data))
+      .catch((err) => console.error("Error fetching appointments:", err));
+
+    api.get("patient/prescriptions/")
+      .then((res) => setPrescriptions(res.data))
+      .catch((err) => console.error("Error fetching prescriptions:", err));
+
+    api.get("patient/lab-reports/")
+      .then((res) => setLabReports(res.data))
+      .catch((err) => console.error("Error fetching lab reports:", err));
+  }, []);
+
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-6">Patient Dashboard</h1>
+
+      {/* ----------------- Appointments ----------------- */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-3">Appointments</h2>
+        {appointments.length > 0 ? (
+          <table className="min-w-full border border-gray-300 text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border p-2">Doctor Name</th>
+                <th className="border p-2">Specialization</th>
+                <th className="border p-2">Appointment Date</th>
+                <th className="border p-2">Reason</th>
+                <th className="border p-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {appointments.map((a) => (
+                <tr key={a.id}>
+                  <td className="border p-2">
+                    {a.doctor?.user?.first_name} {a.doctor?.user?.last_name || "-"}
+                  </td>
+                  <td className="border p-2">
+                    {a.doctor?.specialization || "-"}
+                  </td>
+                  <td className="border p-2">
+                    {safeDate(`${a.date}T${a.time}`)}
+                  </td>
+                  <td className="border p-2">{a.reason || "-"}</td>
+                  <td className="border p-2">{a.status || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No appointments found.</p>
+        )}
+      </section>
+
+      {/* ----------------- Prescriptions ----------------- */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-3">Prescriptions</h2>
+        {prescriptions.length > 0 ? (
+          <table className="min-w-full border border-gray-300 text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border p-2">Doctor</th>
+                <th className="border p-2">Date</th>
+                <th className="border p-2">Notes</th>
+                <th className="border p-2">Medicines</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prescriptions.map((p) => (
+                <tr key={p.id}>
+                  <td className="border p-2">
+                    {p.doctor?.user?.first_name} {p.doctor?.user?.last_name || "-"}
+                  </td>
+                  <td className="border p-2">{safeDate(p.created_at)}</td>
+                  <td className="border p-2">{p.notes || "-"}</td>
+                  <td className="border p-2">
+                    {p.medicines && p.medicines.length > 0
+                      ? p.medicines.map((m) => m.medicine_name).join(", ")
+                      : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No prescriptions found.</p>
+        )}
+      </section>
+
+      {/* ----------------- Lab Reports ----------------- */}
+      <section>
+        <h2 className="text-xl font-semibold mb-3">Lab Reports</h2>
+        {labReports.length > 0 ? (
+          <table className="min-w-full border border-gray-300 text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border p-2">Test Name</th>
+                <th className="border p-2">Date</th>
+                <th className="border p-2">Status</th>
+                <th className="border p-2">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {labReports.map((r) => (
+                <tr key={r.id}>
+                  <td className="border p-2">{r.test_name}</td>
+                  <td className="border p-2">{safeDate(r.created_at)}</td>
+                  <td className="border p-2">{r.status}</td>
+                  <td className="border p-2">{r.result || "Pending"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No lab reports found.</p>
+        )}
+      </section>
+    </div>
+  );
 };
 
 export default PatientDashboard;

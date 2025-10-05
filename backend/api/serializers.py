@@ -143,21 +143,51 @@ class PathologistProfileSerializer(serializers.ModelSerializer):
 # -----------------------
 # Appointment
 # -----------------------
+# class AppointmentSerializer(serializers.ModelSerializer):
+#     patient = PatientProfileSerializer(read_only=True)
+#     patient_id = serializers.PrimaryKeyRelatedField(
+#         write_only=True, queryset=PatientProfile.objects.all(), source='patient'
+#     )
+#     doctor = DoctorProfileSerializer(read_only=True)
+#     doctor_id = serializers.PrimaryKeyRelatedField(
+#         write_only=True, queryset=DoctorProfile.objects.all(), source='doctor'
+#     )
+
+#     class Meta:
+#         model = Appointment
+#         fields = (
+#             'id', 'patient', 'patient_id',
+#             'doctor', 'doctor_id',
+#             'date', 'time', 'status',
+#             'created_by', 'created_at', 'updated_at'
+#         )
+
+#     def validate(self, data):
+#         doctor = data['doctor']
+#         date = data['date']
+#         time = data['time']
+#         if Appointment.objects.filter(doctor=doctor, date=date, time=time).exists():
+#             raise serializers.ValidationError("Doctor already has an appointment at this date/time")
+#         return data
+
 class AppointmentSerializer(serializers.ModelSerializer):
     patient = PatientProfileSerializer(read_only=True)
     patient_id = serializers.PrimaryKeyRelatedField(
         write_only=True, queryset=PatientProfile.objects.all(), source='patient'
     )
-    doctor = DoctorProfileSerializer(read_only=True)
+    doctor = DoctorProfileSerializer(read_only=True)  # Expanding doctor details
     doctor_id = serializers.PrimaryKeyRelatedField(
         write_only=True, queryset=DoctorProfile.objects.all(), source='doctor'
     )
+    
+    # Include reason and other necessary fields if required
+    reason = serializers.CharField(required=False, allow_blank=True)  # Make sure it's in the model
 
     class Meta:
         model = Appointment
         fields = (
             'id', 'patient', 'patient_id',
-            'doctor', 'doctor_id',
+            'doctor', 'doctor_id', 'reason',  # Include reason here
             'date', 'time', 'status',
             'created_by', 'created_at', 'updated_at'
         )
@@ -170,6 +200,9 @@ class AppointmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Doctor already has an appointment at this date/time")
         return data
 
+    
+    
+
 # -----------------------
 # Prescription
 # -----------------------
@@ -178,16 +211,50 @@ class PrescriptionMedicineSerializer(serializers.ModelSerializer):
         model = PrescriptionMedicine
         fields = ('id', 'medicine_name', 'dosage', 'duration', 'pharmacist_note', 'status')
 
+# class PrescriptionSerializer(serializers.ModelSerializer):
+#     items = PrescriptionMedicineSerializer(many=True, write_only=True)
+#     appointment = AppointmentSerializer(read_only=True)
+#     appointment_id = serializers.PrimaryKeyRelatedField(
+#         write_only=True, queryset=Appointment.objects.all(), source='appointment', required=False
+#     )
+
+#     class Meta:
+#         model = Prescription
+#         fields = ('id', 'doctor', 'patient', 'appointment', 'appointment_id', 'notes', 'items', 'created_at')
+
+#     def create(self, validated_data):
+#         items = validated_data.pop('items', [])
+#         prescription = Prescription.objects.create(**validated_data)
+#         for it in items:
+#             PrescriptionMedicine.objects.create(prescription=prescription, **it)
+#         return prescription
+
 class PrescriptionSerializer(serializers.ModelSerializer):
     items = PrescriptionMedicineSerializer(many=True, write_only=True)
     appointment = AppointmentSerializer(read_only=True)
     appointment_id = serializers.PrimaryKeyRelatedField(
         write_only=True, queryset=Appointment.objects.all(), source='appointment', required=False
     )
+    
+    # Add these fields to include doctor and patient information
+    doctor = DoctorProfileSerializer(read_only=True)
+    doctor_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=DoctorProfile.objects.all(), source='doctor'
+    )
+    patient = PatientProfileSerializer(read_only=True)
+    patient_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=PatientProfile.objects.all(), source='patient'
+    )
+    
+    # Optional: Add medicines as a read-only field
+    medicines = PrescriptionMedicineSerializer(source='prescriptionmedicine_set', many=True, read_only=True)
 
     class Meta:
         model = Prescription
-        fields = ('id', 'doctor', 'patient', 'appointment', 'appointment_id', 'notes', 'items', 'created_at')
+        fields = (
+            'id', 'doctor', 'doctor_id', 'patient', 'patient_id',
+            'appointment', 'appointment_id', 'notes', 'items', 'medicines', 'created_at'
+        )
 
     def create(self, validated_data):
         items = validated_data.pop('items', [])
@@ -195,6 +262,9 @@ class PrescriptionSerializer(serializers.ModelSerializer):
         for it in items:
             PrescriptionMedicine.objects.create(prescription=prescription, **it)
         return prescription
+
+
+
 
 # -----------------------
 # Medicines

@@ -203,3 +203,38 @@ from django.http import HttpResponse
 
 def home(request):
     return HttpResponse("Welcome to HealthDoc API!")
+
+# api/views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Appointment, Prescription, LabReportRequest
+from .serializers import AppointmentSerializer, PrescriptionSerializer, LabRequestSerializer
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def patient_appointments(request):
+    patient = request.user.patient_profile
+    appointments = Appointment.objects.filter(patient=patient)
+    serializer = AppointmentSerializer(appointments, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def patient_prescriptions(request):
+    patient = request.user.patient_profile
+    prescriptions = Prescription.objects.filter(patient=patient)
+    serializer = PrescriptionSerializer(prescriptions, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def patient_lab_reports(request):
+    patient = request.user.patient_profile
+    lab_reports = LabReportRequest.objects.filter(patient=patient)
+    serializer = LabRequestSerializer(lab_reports, many=True)
+    return Response(serializer.data)

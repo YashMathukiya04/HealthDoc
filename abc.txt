@@ -61,6 +61,7 @@ frontend/
 │   │       └── MedicineStock.jsx
 │   ├── auth/
 │   │   └── Login.jsx
+|   |   └── RegisterPatient.jsx
 │   ├── App.jsx
 │   └── index.jsx
 └── package.json
