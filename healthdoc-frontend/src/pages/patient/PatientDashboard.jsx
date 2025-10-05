@@ -50,7 +50,7 @@ const PatientDashboard = () => {
               {appointments.map((a) => (
                 <tr key={a.id}>
                   <td className="border p-2">
-                    {a.doctor?.user?.first_name} {a.doctor?.user?.last_name || "-"}
+                    {a.doctor?.user?.username || "-"}
                   </td>
                   <td className="border p-2">
                     {a.doctor?.specialization || "-"}
@@ -86,7 +86,7 @@ const PatientDashboard = () => {
               {prescriptions.map((p) => (
                 <tr key={p.id}>
                   <td className="border p-2">
-                    {p.doctor?.user?.first_name} {p.doctor?.user?.last_name || "-"}
+                    {p.doctor?.user?.username || "-"}
                   </td>
                   <td className="border p-2">{safeDate(p.created_at)}</td>
                   <td className="border p-2">{p.notes || "-"}</td>

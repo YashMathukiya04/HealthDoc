@@ -74,7 +74,7 @@ const App = () => {
         <Route path="/pharmacist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["PHARMACIST"]}><PharmacistDashboard /></ProtectedRoute>} />
 
         {/* Pathologist */}
-        <Route path="/pathologist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["LAB_TECHNICIAN"]}><PathologistDashboard /></ProtectedRoute>} />
+        <Route path="/pathologist/dashboard" element={<ProtectedRoute user={user} allowedRoles={["PATHOLOGIST"]}><PathologistDashboard /></ProtectedRoute>} />
 
         {/* default */}
         <Route path="/" element={user ? <Navigate to={`/${user.role.toLowerCase()}/dashboard`} /> : <Navigate to="/login" />} />

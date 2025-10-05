@@ -40,6 +40,7 @@ const DoctorAppointments = () => {
               <th style={styles.th}>Date</th>
               <th style={styles.th}>Time</th>
               <th style={styles.th}>Status</th>
+              <th style={styles.th}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -53,6 +54,9 @@ const DoctorAppointments = () => {
                 <td style={styles.td}>{a.time}</td>
                 <td style={{ ...styles.td, color: getStatusColor(a.status), fontWeight: 600 }}>
                   {a.status}
+                </td>
+                <td style={{ ...styles.td, color: getStatusColor(a.status), fontWeight: 600 }}>
+                  <button>Edit</button>
                 </td>
               </tr>
             ))}

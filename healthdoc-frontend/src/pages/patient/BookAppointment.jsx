@@ -17,6 +17,7 @@ const BookAppointment = () => {
   const submit = async (e) => {
     e.preventDefault();
     const user = JSON.parse(localStorage.getItem("user"));
+    
     if (!user) return alert("Login required");
     try {
       await createAppointment({
